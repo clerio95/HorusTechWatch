@@ -1,0 +1,23 @@
+[package]
+name = "horustechwatch"
+version = "0.1.0"
+edition = "2021"
+description = "Read-only health-check publisher for Companytec Horustech concentrator"
+publish = false
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde", "std"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+[[bin]]
+name = "horustechwatch"
+path = "src/main.rs"

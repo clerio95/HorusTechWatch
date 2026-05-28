@@ -1,0 +1,29 @@
+# HorusTechWatch — read-only health-check publisher for the Horustech concentrator.
+#
+# Hard-coded safety constraints (NOT configurable, enforced in code):
+#   - Poll interval floor: 30 seconds
+#   - Socket timeout: 5 seconds per read/connect
+#   - Send allowlist: only status (0x01), clock (0x0B), device_info (0x12),
+#     diagnostics (0x1B), wireless (0x25) can ever be sent.
+#
+# Path strings: prefer SINGLE quotes for Windows paths. Single-quoted TOML
+# strings are literal — backslashes are NOT escape characters. With double
+# quotes you must double every backslash (e.g. "\\\\Servidor\\pista\\...").
+
+[device]
+ip   = "192.168.25.91"
+port = 2001                                            # Phase 1; Phase 2 will switch to 857
+
+[poll]
+interval_seconds = 900                                 # 15 minutes (must be >= 30)
+
+[output]
+# Path to the published state.json file (NOT a directory). Examples:
+#   Linux dev:  state_file = "./state.json"
+#   Windows UNC: state_file = '\\Servidor\pista\Relátório-pista\modulo_alarmes\concentrador\state.json'
+#   Windows drive letter: state_file = 'Z:\Relátório-pista\modulo_alarmes\concentrador\state.json'
+state_file = "./state.json"
+
+[audit]
+# Local audit log directory. One JSONL file per day. Lives next to the binary.
+log_dir = "./logs"

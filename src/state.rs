@@ -130,11 +130,111 @@ impl StateAccumulator {
     }
 }
 
+/// Alarm-relevant subset of a poll cycle — noise stripped.
+#[derive(Serialize, Debug)]
+pub struct HealthSnapshot {
+    pub poll_at: String,
+    pub reachable: bool,
+    pub last_error: Option<String>,
+    pub consecutive_failures: u32,
+    pub status: HealthStatus,
+    pub battery: HealthBattery,
+    pub clock: HealthClock,
+    pub diagnostics: HealthDiagnostics,
+    pub wireless: HealthWireless,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HealthStatus {
+    pub ok: bool,
+    pub any_fault: bool,
+    pub any_generic_error: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HealthBattery {
+    pub ok: bool,
+    pub level: Option<i64>,
+    pub level_label: Option<String>,
+    pub voltage_raw: Option<String>,
+    pub hw_status: Option<String>,
+    pub hw_label: Option<String>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HealthClock {
+    pub ok: bool,
+    pub drift_seconds: Option<i64>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HealthDiagnostics {
+    pub ok: bool,
+    pub any_fault: bool,
+}
+
+#[derive(Serialize, Debug)]
+pub struct HealthWireless {
+    pub ok: bool,
+    pub any_fault: bool,
+}
+
+impl StateSnapshot {
+    pub fn to_health(&self) -> HealthSnapshot {
+        let di = self.commands.device_info.parsed.as_ref();
+        HealthSnapshot {
+            poll_at: self.poll_at.clone(),
+            reachable: self.reachable,
+            last_error: self.last_error.clone(),
+            consecutive_failures: self.consecutive_failures,
+            status: HealthStatus {
+                ok: self.commands.status.ok,
+                any_fault: self.commands.status.parsed
+                    .as_ref()
+                    .and_then(|v| v["any_fault"].as_bool())
+                    .unwrap_or(false),
+                any_generic_error: self.commands.status.parsed
+                    .as_ref()
+                    .and_then(|v| v["any_generic_error"].as_bool())
+                    .unwrap_or(false),
+            },
+            battery: HealthBattery {
+                ok: self.commands.device_info.ok,
+                level: di.and_then(|v| v["battery_level"].as_i64()),
+                level_label: di.and_then(|v| v["battery_level_label"].as_str()).map(str::to_owned),
+                voltage_raw: di.and_then(|v| v["battery_voltage_raw"].as_str()).map(str::to_owned),
+                hw_status: di.and_then(|v| v["battery_hw_status"].as_str()).map(str::to_owned),
+                hw_label: di.and_then(|v| v["battery_hw_label"].as_str()).map(str::to_owned),
+            },
+            clock: HealthClock {
+                ok: self.commands.clock.ok,
+                drift_seconds: self.commands.clock.parsed
+                    .as_ref()
+                    .and_then(|v| v["drift_seconds"].as_i64()),
+            },
+            diagnostics: HealthDiagnostics {
+                ok: self.commands.diagnostics.ok,
+                any_fault: self.commands.diagnostics.parsed
+                    .as_ref()
+                    .and_then(|v| v["any_fault"].as_bool())
+                    .unwrap_or(false),
+            },
+            wireless: HealthWireless {
+                ok: self.commands.wireless.ok,
+                any_fault: self.commands.wireless.parsed
+                    .as_ref()
+                    .and_then(|v| v["any_fault"].as_bool())
+                    .unwrap_or(false),
+            },
+        }
+    }
+}
+
 /// Atomic publish: write to `<path>.tmp`, fsync, then rename over `<path>`.
 /// On a successful return, a reader doing a single open+read of `path` will
 /// see either the previous file contents or the new ones — never a partial.
-pub fn write_atomic(path: &Path, snapshot: &StateSnapshot) -> std::io::Result<()> {
-    let bytes = serde_json::to_vec_pretty(snapshot)
+pub fn write_atomic<T: serde::Serialize>(path: &Path, value: &T) -> std::io::Result<()> {
+    let bytes = serde_json::to_vec_pretty(value)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     let tmp_path = match path.extension() {

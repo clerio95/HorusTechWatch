@@ -24,6 +24,10 @@ interval_seconds = 900                                 # 15 minutes (must be >= 
 #   Windows drive letter: state_file = 'Z:\Relátório-pista\modulo_alarmes\concentrador\state.json'
 state_file = "./state.json"
 
+# Optional: alarm-only subset of state.json (noise stripped). Same path rules
+# as state_file. Omit or comment out to disable.
+health_file = "./health.json"
+
 [audit]
 # Local audit log directory. One JSONL file per day. Lives next to the binary.
 log_dir = "./logs"

@@ -18,9 +18,15 @@ use protocol::Command;
 use state::{CommandPollResult, StateAccumulator};
 
 fn main() {
-    let config_path = std::env::args()
-        .nth(1)
-        .unwrap_or_else(|| "config.toml".to_string());
+    let mut run_once = false;
+    let mut config_path = "config.toml".to_string();
+    for arg in std::env::args().skip(1) {
+        if arg == "--once" {
+            run_once = true;
+        } else {
+            config_path = arg;
+        }
+    }
 
     let cfg = match config::load_from_file(Path::new(&config_path)) {
         Ok(c) => c,
@@ -37,11 +43,12 @@ fn main() {
     }
 
     let startup_detail = format!(
-        "ip={} port={} interval={}s state_file={}",
+        "ip={} port={} interval={}s state_file={} health_file={}",
         cfg.device_ip,
         cfg.device_port,
         cfg.poll_interval_secs,
-        cfg.state_file.display()
+        cfg.state_file.display(),
+        cfg.health_file.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "disabled".into()),
     );
     log_audit(
         &audit,
@@ -56,8 +63,13 @@ fn main() {
     eprintln!("horustechwatch started: {}", startup_detail);
 
     let mut acc = StateAccumulator::new(cfg.device_ip.clone(), cfg.device_port);
-    let interval = Duration::from_secs(cfg.poll_interval_secs);
 
+    if run_once {
+        run_one_cycle(&cfg, &audit, &mut acc, &Utc::now());
+        return;
+    }
+
+    let interval = Duration::from_secs(cfg.poll_interval_secs);
     loop {
         let cycle_start = Instant::now();
         let poll_at = Utc::now();
@@ -245,6 +257,24 @@ fn publish_snapshot(cfg: &Config, audit: &AuditLog, poll_at: &DateTime<Utc>, sna
             },
         );
         eprintln!("[{}] state.json publish failed: {}", poll_at, msg);
+    }
+
+    if let Some(ref health_path) = cfg.health_file {
+        let health = snap.to_health();
+        if let Err(e) = state::write_atomic(health_path, &health) {
+            let msg = e.to_string();
+            log_audit(
+                audit,
+                AuditEvent {
+                    at: poll_at.to_rfc3339_opts(SecondsFormat::Secs, true),
+                    event: "publish_failed",
+                    detail: Some("health.json"),
+                    error: Some(&msg),
+                    command: None,
+                },
+            );
+            eprintln!("[{}] health.json publish failed: {}", poll_at, msg);
+        }
     }
 }
 

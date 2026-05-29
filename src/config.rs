@@ -18,6 +18,7 @@ pub struct Config {
     pub device_port: u16,
     pub poll_interval_secs: u64,
     pub state_file: PathBuf,
+    pub health_file: Option<PathBuf>,
     pub audit_log_dir: PathBuf,
 }
 
@@ -43,6 +44,7 @@ struct RawPoll {
 #[derive(Deserialize, Debug)]
 struct RawOutput {
     state_file: String,
+    health_file: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -100,6 +102,7 @@ fn validate(raw: RawConfig) -> Result<Config, ConfigError> {
         device_port: raw.device.port,
         poll_interval_secs: raw.poll.interval_seconds,
         state_file: PathBuf::from(raw.output.state_file),
+        health_file: raw.output.health_file.map(PathBuf::from),
         audit_log_dir: PathBuf::from(raw.audit.log_dir),
     })
 }
